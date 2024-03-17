@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+   name: book
+   labels:
+     app: work
+spec:
+   replicas: 2
+   selector:
+     matchLabels:
+       app: work
+   template:
+     metadata:
+       labels:
+         app: work
+     spec:
+       containers:
+       - name: contain
+         image: devopswithcloudhub/nginx:blue
+         ports:
+         - name: http
+           containerPort: 80
