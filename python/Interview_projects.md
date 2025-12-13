@@ -10,4 +10,6 @@
 4) Kubernetes Resources Auditor (High-value project)
    Audit kubernetes cluster and report misconfigurations
 5) Monitoring Exporter ( Prometheus -style)
-     Expose custom metrics for prometheus using python 
+     Expose custom metrics for prometheus using python
+
+*** Real time data populater ***
