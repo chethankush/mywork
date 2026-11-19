@@ -1,0 +1,50 @@
+---
+# 1. Default Deny All Ingress Traffic in the Namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# 2. Allow OpenShift Ingress Router to reach cricket-app on port 8080
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-router-to-app
+spec:
+  podSelector:
+    matchLabels:
+      deployment: cricket-app
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              network.openshift.io/policy-group: ingress
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+# 3. Allow ONLY cricket-app to reach PostgreSQL (cricket-db) on port 5432
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-app-to-db
+spec:
+  podSelector:
+    matchLabels:
+      name: cricket-db
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              deployment: cricket-app
+      ports:
+        - protocol: TCP
+          port: 5432
