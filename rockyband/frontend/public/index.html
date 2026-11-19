@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RockyBand.com — Official Tour Portal</title>
+  <script src="https://tailwindcss.com"></script>
+</head>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen font-sans">
+
+  <!-- Pod Load-Balancing Telemetry Bar -->
+  <div class="bg-amber-500/10 border-b border-amber-500/30 px-6 py-2.5 text-xs flex flex-wrap justify-between items-center gap-2">
+    <div class="flex items-center space-x-4">
+      <span>🌐 Frontend Pod: <strong id="fePod" class="text-amber-400 font-mono">loading...</strong></span>
+      <span>⚙️ Backend Pod: <strong id="bePod" class="text-emerald-400 font-mono">loading...</strong></span>
+    </div>
+    <button onclick="loadTour()" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 px-3 py-1 rounded border border-zinc-700 transition">
+      ↻ Refresh Request (Test Load Balancing)
+    </button>
+  </div>
+
+  <!-- Hero Banner -->
+  <header class="bg-gradient-to-b from-red-950/60 via-zinc-950 to-zinc-950 py-12 px-6 text-center border-b border-zinc-900">
+    <p id="tourTitle" class="text-xs font-bold tracking-[0.3em] uppercase text-red-500">WORLD TOUR 2026</p>
+    <h1 id="bandName" class="text-5xl md:text-6xl font-black tracking-tight mt-2 text-white">ROCKY BAND</h1>
+    <p class="text-zinc-400 text-sm mt-3">Three-Tier OpenShift Microservices Demo • <span class="font-mono text-zinc-300">rockyband.com</span></p>
+  </header>
+
+  <!-- Error Alert Banner (Shows clearly during Challenge #7 troubleshooting!) -->
+  <div id="errorBanner" class="hidden max-w-4xl mx-auto mt-6 px-4">
+    <div class="bg-red-950/80 border border-red-500 text-red-200 px-5 py-4 rounded-2xl shadow-lg">
+      <p class="font-bold text-sm uppercase tracking-wider text-red-400">⚠️ Backend / Database Connection Error</p>
+      <p id="errorText" class="text-sm font-mono mt-1"></p>
+    </div>
+  </div>
+
+  <main class="max-w-4xl mx-auto px-4 py-10 grid grid-cols-1 md:grid-cols-2 gap-8">
+
+    <!-- Tour Dates Section -->
+    <section class="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-6">
+      <h2 class="text-lg font-extrabold uppercase tracking-wider text-amber-400 mb-4">🎸 Upcoming Tour Dates</h2>
+      <div id="concertsList" class="space-y-3">
+        <p class="text-zinc-500 text-sm">Loading tour dates from PostgreSQL...</p>
+      </div>
+    </section>
+
+    <!-- Fan Shoutouts Wall -->
+    <section class="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-6 flex flex-col justify-between">
+      <div>
+        <h2 class="text-lg font-extrabold uppercase tracking-wider text-red-400 mb-4">🔥 Fan Shoutout Wall</h2>
+        <div id="shoutoutsList" class="space-y-2.5 max-h-64 overflow-y-auto mb-5 pr-1">
+          <p class="text-zinc-500 text-sm">No shoutouts yet. Be the first!</p>
+        </div>
+      </div>
+
+      <form onsubmit="postShoutout(event)" class="space-y-2.5 pt-4 border-t border-zinc-800">
+        <input id="fanName" required placeholder="Your Name" class="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500" />
+        <input id="fanMsg" required placeholder="Leave a message for the band..." class="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-red-500" />
+        <button type="submit" class="w-full bg-red-600 hover:bg-red-500 py-2.5 rounded-lg font-bold text-sm transition">
+          Post Shoutout to DB
+        </button>
+      </form>
+    </section>
+
+  </main>
+
+  <script>
+    async function loadTour() {
+      const errBox = document.getElementById('errorBanner');
+      errBox.classList.add('hidden');
+
+      const uiRes = await fetch('/ui-info').then(r => r.json());
+      document.getElementById('bandName').textContent = uiRes.bandName;
+      document.getElementById('tourTitle').textContent = uiRes.tourTitle;
+      document.getElementById('fePod').textContent = uiRes.frontendPod;
+
+      const res = await fetch('/api/tour');
+      const data = await res.json();
+
+      if (data.frontendPod) document.getElementById('fePod').textContent = data.frontendPod;
+      document.getElementById('bePod').textContent = data.backendPod || 'UNREACHABLE';
+
+      if (!res.ok) {
+        errBox.classList.remove('hidden');
+        document.getElementById('errorText').textContent = data.error || 'Unknown backend error';
+        return;
+      }
+
+      document.getElementById('concertsList').innerHTML = data.concerts.map(c => `
+        <div class="bg-zinc-950 border border-zinc-800 rounded-xl p-3.5 flex justify-between items-center">
+          <div>
+            <div class="font-bold text-white">${c.city} <span class="text-xs text-zinc-500 font-normal">• ${c.show_date}</span></div>
+            <div class="text-xs text-zinc-400 mt-0.5">${c.venue}</div>
+          </div>
+          <span class="text-xs font-bold px-2.5 py-1 rounded-full ${c.tickets_status === 'SOLD OUT' ? 'bg-red-950 text-red-400 border border-red-800' : 'bg-emerald-950 text-emerald-400 border border-emerald-800'}">
+            ${c.tickets_status}
+          </span>
+        </div>
+      `).join('');
+
+      if (data.shoutouts.length > 0) {
+        document.getElementById('shoutoutsList').innerHTML = data.shoutouts.map(s => `
+          <div class="bg-zinc-950/90 border border-zinc-800/80 rounded-lg p-3 text-sm">
+            <span class="font-bold text-amber-400">${s.fan_name}:</span>
+            <span class="text-zinc-300">${s.message}</span>
+          </div>
+        `).join('');
+      }
+    }
+
+    async function postShoutout(e) {
+      e.preventDefault();
+      const fan_name = document.getElementById('fanName').value;
+      const message = document.getElementById('fanMsg').value;
+      const res = await fetch('/api/shoutouts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fan_name, message })
+      });
+      if (res.ok) {
+        document.getElementById('fanMsg').value = '';
+        loadTour();
+      } else {
+        const data = await res.json();
+        document.getElementById('errorBanner').classList.remove('hidden');
+        document.getElementById('errorText').textContent = data.error;
+      }
+    }
+
+    loadTour();
+  </script>
+</body>
+</html>
