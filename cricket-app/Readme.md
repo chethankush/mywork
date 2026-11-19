@@ -45,3 +45,37 @@ echo "Public Scoreboard:  https://$HOST/"
 echo "Scorer Admin Panel: https://$HOST/admin.html"
 # Quick API health check
 curl -k "https://$HOST/api/state"
+
+
+1. How the NetworkPolicy Architecture Works
+
+By default in OpenShift, every pod in every namespace can talk to every other pod. By applying three NetworkPolicy objects, we enforce strict isolation:
+
+Policy Name	              Target Pod	                    Allowed Traffic	                                            Blocked Traffic
+default-deny-all	      All pods in project	          None (Baseline lockdown)	                      Everything not explicitly allowed below
+allow-router-to-app	    cricket-app (Port 8080)	      Only pods in openshift-ingress	                Direct pod-to-pod access from any other app or namespace
+                                                           (the OpenShift Router)
+allow-app-to-db	        cricket-db (Port 5432)	      Only pods with label app=cricket-app	          Any rogue pod trying to connect to PostgreSQL on port 5432
+
+2) Apply the network policy
+   oc apply -f ~/cricket-app/network-policies.yaml
+
+   
+3. Test & Verify That Traffic Isolation Actually Works
+Now let's prove that your policies block unauthorized traffic while keeping your live scoreboard working:
+HOST=$(oc get route cricket-app -o jsonpath='{.spec.host}')
+curl -k -s "https://$HOST/api/state" | head -c 120
+
+
+4. Test it with rouge pod whether it can access
+   Launch a temporary "rogue" test pod and try to connect to PostgreSQL
+
+oc run rogue-pod --rm -it --restart=Never \
+  --image=image-registry.openshift-image-registry.svc:5000/cricket-live/cricket-app:latest \
+  -- node -e "const s = require('net').connect(5432, 'cricket-db'); s.setTimeout(3000); s.on('connect', () => { console.log('ALLOWED'); process.exit(0); }); s.on('timeout', () => { console.log('BLOCKED (Timeout)'); process.exit(1); }); s.on('error', (e) => { console.log('BLOCKED:', e.message); process.exit(1); });"
+
+
+• If the NetworkPolicy is blocking unauthorized pods as intended, it will print BLOCKED (Timeout).
+• If you temporarily delete allow-app-to-db or test from a pod with the label -l deployment=cricket-app, it will print ALLOWED.
+
+
