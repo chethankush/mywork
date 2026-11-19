@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cricket Scorer Control Panel</title>
+  <script src="https://tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="bg-slate-950 text-white min-h-screen font-sans pb-12">
+
+  <header class="bg-slate-900 border-b border-slate-800 px-6 py-4 flex justify-between items-center">
+    <h1 class="font-bold text-lg text-emerald-400">🏏 Scorer Control Panel</h1>
+    <a href="/" target="_blank" class="text-xs bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 rounded-lg font-semibold">
+      View Live Scoreboard ↗
+    </a>
+  </header>
+
+  <main class="max-w-2xl mx-auto px-4 mt-6 space-y-6">
+
+    <!-- Admin Password Box -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between">
+      <div class="w-full sm:w-auto flex-1">
+        <label class="block text-xs text-slate-400 mb-1">Admin Scorer Password (default: admin123)</label>
+        <input id="adminPass" type="password" value="admin123" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+      </div>
+      <div id="statusMsg" class="text-xs font-medium text-slate-400">Ready to score</div>
+    </div>
+
+    <!-- Live Mini Score Summary -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex justify-between items-center">
+      <div>
+        <div id="miniTeam" class="text-xs uppercase text-slate-400 font-bold">INDIA</div>
+        <div id="miniScore" class="text-4xl font-black text-white mt-0.5">0/0</div>
+      </div>
+      <div class="text-right">
+        <div class="text-sm text-slate-300">Overs: <strong id="miniOvers">0.0</strong></div>
+        <div id="miniTimeline" class="flex gap-1.5 mt-2 justify-end"></div>
+      </div>
+    </div>
+
+    <!-- Quick Scoring Buttons -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+      <h2 class="text-xs uppercase tracking-wider text-slate-400 font-bold mb-4">Record Ball</h2>
+      
+      <div class="grid grid-cols-3 gap-3 mb-4">
+        <button onclick="sendBall(0, 'NONE', false)" class="bg-slate-800 hover:bg-slate-700 active:scale-95 py-4 rounded-xl font-bold text-xl transition">0 (Dot)</button>
+        <button onclick="sendBall(1, 'NONE', false)" class="bg-sky-700 hover:bg-sky-600 active:scale-95 py-4 rounded-xl font-bold text-xl transition">+1</button>
+        <button onclick="sendBall(2, 'NONE', false)" class="bg-sky-700 hover:bg-sky-600 active:scale-95 py-4 rounded-xl font-bold text-xl transition">+2</button>
+        <button onclick="sendBall(3, 'NONE', false)" class="bg-sky-700 hover:bg-sky-600 active:scale-95 py-4 rounded-xl font-bold text-xl transition">+3</button>
+        <button onclick="sendBall(4, 'NONE', false)" class="bg-emerald-600 hover:bg-emerald-500 active:scale-95 py-4 rounded-xl font-black text-xl transition shadow-lg shadow-emerald-950">4 (FOUR)</button>
+        <button onclick="sendBall(6, 'NONE', false)" class="bg-purple-600 hover:bg-purple-500 active:scale-95 py-4 rounded-xl font-black text-xl transition shadow-lg shadow-purple-950">6 (SIX)</button>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3 mb-5">
+        <button onclick="sendBall(1, 'WIDE', false)" class="bg-amber-600/80 hover:bg-amber-600 active:scale-95 py-3 rounded-xl font-bold text-sm transition">Wide (+1)</button>
+        <button onclick="sendBall(1, 'NOBALL', false)" class="bg-amber-600/80 hover:bg-amber-600 active:scale-95 py-3 rounded-xl font-bold text-sm transition">No Ball (+1)</button>
+        <button onclick="sendBall(0, 'NONE', true)" class="bg-red-600 hover:bg-red-500 active:scale-95 py-3 rounded-xl font-black text-sm transition shadow-lg shadow-red-950">WICKET</button>
+      </div>
+
+      <!-- Undo & Reset Controls -->
+      <div class="flex gap-3 pt-3 border-t border-slate-800">
+        <button onclick="undoBall()" class="flex-1 bg-slate-800 hover:bg-amber-950/60 border border-slate-700 hover:border-amber-600 text-amber-300 py-3 rounded-xl font-bold text-sm transition">
+          ↩ Undo Last Ball
+        </button>
+        <button onclick="resetMatch()" class="bg-slate-800 hover:bg-red-950/60 border border-slate-700 hover:border-red-600 text-red-400 px-4 py-3 rounded-xl font-bold text-sm transition">
+          Reset Score
+        </button>
+      </div>
+    </div>
+
+    <!-- Match & Players Setup -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+      <h2 class="text-xs uppercase tracking-wider text-slate-400 font-bold mb-4">Match &amp; Players Info</h2>
+      <div class="grid grid-cols-2 gap-3 text-sm">
+        <div>
+          <label class="text-xs text-slate-500">Team A</label>
+          <input id="inTeamA" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 mt-1" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-500">Team B</label>
+          <input id="inTeamB" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 mt-1" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-500">Batting Team</label>
+          <input id="inBatting" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 mt-1" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-500">Overs Limit</label>
+          <input id="inOvers" type="number" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 mt-1" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-500">Striker (*)</label>
+          <input id="inStriker" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 mt-1" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-500">Non-Striker</label>
+          <input id="inNonStriker" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 mt-1" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-500">Bowler</label>
+          <input id="inBowler" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 mt-1" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-500">Match Status</label>
+          <input id="inStatus" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 mt-1" />
+        </div>
+      </div>
+      <button onclick="updateMatchInfo()" class="mt-4 w-full bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-xl font-bold text-sm transition">
+        Save Match Details
+      </button>
+    </div>
+
+  </main>
+
+  <script>
+    const socket = io();
+
+    function setMsg(text, isError = false) {
+      const el = document.getElementById('statusMsg');
+      el.textContent = text;
+      el.className = isError ? 'text-xs font-bold text-red-400' : 'text-xs font-bold text-emerald-400';
+    }
+
+    async function apiPost(url, body = {}) {
+      const pass = document.getElementById('adminPass').value;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-password': pass
+        },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMsg(data.error || 'Error updating score', true);
+      } else {
+        setMsg('Updated ✓');
+        renderMini(data, false);
+      }
+    }
+
+    function sendBall(runs, extra_type, is_wicket) {
+      apiPost('/api/ball', { runs, extra_type, is_wicket });
+    }
+
+    function undoBall() {
+      apiPost('/api/undo');
+    }
+
+    function resetMatch() {
+      if (confirm('Reset all runs, wickets, and ball history to 0?')) {
+        apiPost('/api/reset');
+      }
+    }
+
+    function updateMatchInfo() {
+      apiPost('/api/match', {
+        team_a: document.getElementById('inTeamA').value,
+        team_b: document.getElementById('inTeamB').value,
+        batting_team: document.getElementById('inBatting').value,
+        overs_limit: parseInt(document.getElementById('inOvers').value, 10) || 20,
+        striker: document.getElementById('inStriker').value,
+        non_striker: document.getElementById('inNonStriker').value,
+        bowler: document.getElementById('inBowler').value,
+        status: document.getElementById('inStatus').value
+      });
+    }
+
+    function renderMini(data, populateInputs = true) {
+      if (!data || !data.match) return;
+      document.getElementById('miniTeam').textContent = data.match.batting_team;
+      document.getElementById('miniScore').textContent = `${data.score.runs}/${data.score.wickets}`;
+      document.getElementById('miniOvers').textContent = data.score.overs;
+
+      const last6 = data.timeline.slice(-6);
+      document.getElementById('miniTimeline').innerHTML = last6.map(b =>
+        `<span class="px-2 py-0.5 rounded bg-slate-800 text-xs font-bold border border-slate-700">${b.label}</span>`
+      ).join('');
+
+      if (populateInputs) {
+        document.getElementById('inTeamA').value = data.match.team_a;
+        document.getElementById('inTeamB').value = data.match.team_b;
+        document.getElementById('inBatting').value = data.match.batting_team;
+        document.getElementById('inOvers').value = data.match.overs_limit;
+        document.getElementById('inStriker').value = data.match.striker;
+        document.getElementById('inNonStriker').value = data.match.non_striker;
+        document.getElementById('inBowler').value = data.match.bowler;
+        document.getElementById('inStatus').value = data.match.status;
+      }
+    }
+
+    fetch('/api/state').then(r => r.json()).then(d => renderMini(d, true));
+    socket.on('scoreUpdate', d => renderMini(d, false));
+  </script>
+</body>
+</html>

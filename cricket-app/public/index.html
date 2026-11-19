@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Cricket Scoreboard</title>
+  <script src="https://tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .live-dot { animation: pulseGlow 1.5s infinite; }
+    .pop-in { animation: pop 0.3s ease-out; }
+    @keyframes pop {
+      0% { transform: scale(0.85); opacity: 0.5; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-white min-h-screen flex flex-col justify-between font-sans selection:bg-emerald-500">
+
+  <!-- Top Broadcast Header -->
+  <header class="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 border-b border-slate-800 px-6 py-4 flex justify-between items-center shadow-lg">
+    <div class="flex items-center space-x-3">
+      <span class="h-3 w-3 rounded-full bg-red-500 live-dot"></span>
+      <span id="matchStatus" class="text-xs font-bold tracking-widest uppercase text-red-400">LIVE MATCH</span>
+    </div>
+    <h1 class="text-lg md:text-xl font-extrabold tracking-wider text-slate-200">
+      <span id="teamA">TEAM A</span> <span class="text-slate-500 mx-2">VS</span> <span id="teamB">TEAM B</span>
+    </h1>
+    <a href="/admin.html" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 transition">
+      Scorer Login
+    </a>
+  </header>
+
+  <!-- Main Scoreboard Card -->
+  <main class="max-w-4xl w-full mx-auto px-4 my-8">
+    <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/60 border border-slate-800 rounded-3xl p-6 md:p-10 shadow-2xl">
+      
+      <!-- Batting Team & Big Score -->
+      <div class="flex flex-col md:flex-row md:items-end justify-between border-b border-slate-800 pb-8">
+        <div>
+          <span class="text-xs uppercase tracking-widest text-emerald-400 font-semibold">Batting</span>
+          <h2 id="battingTeam" class="text-4xl md:text-5xl font-black tracking-tight mt-1 text-white">INDIA</h2>
+        </div>
+
+        <div class="mt-6 md:mt-0 md:text-right">
+          <div id="scoreDisplay" class="text-6xl md:text-7xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-300 pop-in">
+            0/0
+          </div>
+          <div class="flex md:justify-end items-center space-x-4 mt-2 text-slate-400 text-lg font-medium">
+            <span>Overs: <strong id="oversDisplay" class="text-white">0.0</strong> <span class="text-sm text-slate-500">/ <span id="oversLimit">20</span></span></span>
+            <span>•</span>
+            <span>CRR: <strong id="crrDisplay" class="text-emerald-400">0.00</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Crease & Bowler Info -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 py-6 border-b border-slate-800">
+        <div class="bg-slate-950/60 rounded-2xl p-4 border border-slate-800/80">
+          <p class="text-xs uppercase tracking-wider text-slate-500 mb-2 font-semibold">At The Crease</p>
+          <div class="flex justify-between items-center text-base font-semibold text-white mb-1">
+            <span>🏏 <span id="striker">Striker</span> <span class="text-emerald-400 text-xs ml-1">*</span></span>
+          </div>
+          <div class="flex justify-between items-center text-sm text-slate-400">
+            <span>🏏 <span id="nonStriker">Non-Striker</span></span>
+          </div>
+        </div>
+
+        <div class="bg-slate-950/60 rounded-2xl p-4 border border-slate-800/80 flex flex-col justify-center">
+          <p class="text-xs uppercase tracking-wider text-slate-500 mb-2 font-semibold">Current Bowler</p>
+          <div class="text-base font-semibold text-amber-300">
+            ⚾ <span id="bowler">Bowler</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Balls Timeline -->
+      <div class="pt-6">
+        <div class="flex justify-between items-center mb-3">
+          <span class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Recent Balls Timeline</span>
+          <span class="text-xs text-slate-500">Auto-updating live</span>
+        </div>
+        <div id="timelineContainer" class="flex flex-wrap gap-2.5 min-h-[44px] items-center">
+          <span class="text-slate-600 text-sm italic">Waiting for first ball...</span>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <footer class="text-center text-xs text-slate-600 py-4">
+    Powered by OpenShift &amp; Socket.io
+  </footer>
+
+  <script>
+    const socket = io();
+
+    function getBallBadgeStyle(ball) {
+      if (ball.isWicket) return 'bg-red-600 text-white border-red-400 shadow-red-900/50 shadow-md';
+      if (ball.runs === 6 && ball.extra === 'NONE') return 'bg-purple-600 text-white border-purple-400 shadow-purple-900/50 shadow-md';
+      if (ball.runs === 4 && ball.extra === 'NONE') return 'bg-emerald-600 text-white border-emerald-400 shadow-emerald-900/50 shadow-md';
+      if (ball.extra !== 'NONE') return 'bg-amber-500/20 text-amber-300 border-amber-500/50';
+      if (ball.runs === 0) return 'bg-slate-800 text-slate-400 border-slate-700';
+      return 'bg-sky-600/30 text-sky-200 border-sky-500/50';
+    }
+
+    function renderState(data) {
+      if (!data || !data.match) return;
+      const { match, score, timeline } = data;
+
+      document.getElementById('matchStatus').textContent = match.status;
+      document.getElementById('teamA').textContent = match.team_a;
+      document.getElementById('teamB').textContent = match.team_b;
+      document.getElementById('battingTeam').textContent = match.batting_team;
+      document.getElementById('oversLimit').textContent = match.overs_limit;
+      document.getElementById('striker').textContent = match.striker;
+      document.getElementById('nonStriker').textContent = match.non_striker;
+      document.getElementById('bowler').textContent = match.bowler;
+
+      const scoreEl = document.getElementById('scoreDisplay');
+      const newScore = `${score.runs}/${score.wickets}`;
+      if (scoreEl.textContent.trim() !== newScore) {
+        scoreEl.textContent = newScore;
+        scoreEl.classList.remove('pop-in');
+        void scoreEl.offsetWidth;
+        scoreEl.classList.add('pop-in');
+      }
+
+      document.getElementById('oversDisplay').textContent = score.overs;
+      document.getElementById('crrDisplay').textContent = score.crr;
+
+      const container = document.getElementById('timelineContainer');
+      if (timeline.length === 0) {
+        container.innerHTML = '<span class="text-slate-600 text-sm italic">Waiting for first ball...</span>';
+        return;
+      }
+
+      container.innerHTML = timeline.map(b => `
+        <div class="h-10 min-w-[40px] px-2.5 rounded-full border flex items-center justify-center font-bold text-sm pop-in ${getBallBadgeStyle(b)}">
+          ${b.label}
+        </div>
+      `).join('');
+    }
+
+    fetch('/api/state').then(r => r.json()).then(renderState);
+    socket.on('scoreUpdate', renderState);
+  </script>
+</body>
+</html>
