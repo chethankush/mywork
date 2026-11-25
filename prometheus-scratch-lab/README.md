@@ -1,6 +1,12 @@
 # Scratch Prometheus Monitoring Lab
 Minimal, low-resource Prometheus configuration monitoring a simple web service.
 
+• prometheus-k8s-0 / 1 run under openshift-monitoring. They only scrape cluster infrastructure (nodes, API servers, cluster operators). They do not scrape your custom developer applications.
+• prometheus-user-workload-0 / 1 run under openshift-user-workload-monitoring. They are the ones that reach into your custom developer Namespaces to pull your application metrics.
+
+• /metrics inside your app pod is NOT a storage folder. It is simply a live web URL endpoint (like a webpage). Your Node.js/Python code dynamically generates text numbers on this webpage in real-time. It holds no historical data and consumes almost zero space.
+• The actual storage happens inside the Prometheus pods themselves. When Prometheus pulls data from your app's /metrics page, it saves those numbers into its own high-performance Timeseries Database (TSDB) stored on its own disk volume inside the monitoring namespace.
+
 ## Deployment Steps
 ```bash
 oc new-project custom-monitoring
@@ -26,3 +32,9 @@ oc create route edge prometheus-engine --service=prometheus-engine --insecure-po
 │ │ data on URL│ │      │  api_requests 12  │    │ └─────────────────────────────┘ │
 │ └────────────┘ │      │                   │    └─────────────────────────────────┘
 └────────────────┘      └───────────────────┘
+
+1. Generation: Your application pod keeps track of active connections in its temporary RAM memory. If 12 fans hit your rockyband tour API, the app simply updates a variable in its memory.
+2. The Scrape: Every 15 seconds, the central prometheus-user-workload-0 pod sends an internal HTTP network request to your app: GET http://<your-pod-ip>:8080/metrics.
+3. The Extraction: Your app reads its internal memory variables and prints a plain text string onto the webpage right at that exact microsecond: rocky_api_requests_total 12.
+4. The Storage: Prometheus reads that text line string, attaches a timestamp to it (e.g., Nov 25, 2026, 22:50:00 -> 12), and saves it onto its own hard disk database volume inside the monitoring namespace.
+5. The Memory Wipe: If your application pod crashes, gets deleted, or restarts, its local count drops back to 0. However, your historical data graph remains completely safe and unbroken because Prometheus already sucked the data out and stored it permanently in its own database!
