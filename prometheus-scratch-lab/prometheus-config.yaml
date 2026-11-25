@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-core-config
+  namespace: custom-monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 5s # Scrape metrics every 5 seconds for fast home-lab updates
+      evaluation_interval: 5s
+
+    scrape_configs:
+      - job_name: 'simple-web-metrics-scraper'
+        static_configs:
+          - targets: ['simple-web:9898'] # Points directly to the internal Kubernetes Service name
